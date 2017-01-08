@@ -412,7 +412,7 @@ function BigWigsVersionQuery:BigWigs_RecvSync(sync, rest, nick)
 		else
 			self:TriggerEvent("BigWigs_SendSync", "BWVR " .. self.zoneRevisions[rest] .. " " .. nick)
 		end
-	elseif sync == "BWVS" and nick ~= UnitName("player") and rest then
+	elseif sync == "BWVS" and rest then
 		local myversion = rest; assert(loadstring(myversion)) ();
 	elseif sync == "BWVR" and self.queryRunning and nick and rest then
 		-- Means it's either a old style or new style reply.
