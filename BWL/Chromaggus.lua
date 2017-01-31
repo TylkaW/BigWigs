@@ -32,9 +32,9 @@ L:RegisterTranslations("enUS", function() return {
 
 	breath_trigger = "^Chromaggus begins to cast ([%w ]+)\.",
 	vulnerability_test = "^[%w']+ [%w' ]+ ([%w]+) Chromaggus for ([%d]+) ([%w ]+) damage%..*",
-	frenzy_trigger = "%s goes into a killing frenzy!",
-	--vulnerability_trigger = "%s flinches as its skin shimmers.",
-	vulnerability_trigger = "%s flinches",
+	frenzy_trigger = "^Chromaggus goes into a killing frenzy!",
+	vulnerability_trigger = "^Chromaggus flinches as its skin shimmers.",
+	--vulnerability_trigger = "flinches",
 	
 	hit = "hits",
 	crit = "crits",
@@ -78,8 +78,8 @@ L:RegisterTranslations("deDE", function() return {
 
 	breath_trigger = "^Chromaggus beginnt (.+) zu wirken%.",
 	vulnerability_test = "^[^%s]+ .* trifft Chromaggus(.+)f\195\188r ([%d]+) ([%w ]+)'schaden%..*", -- ?
-	frenzy_trigger = "%s ger\195\164t in t\195\182dliche Raserei!",
-	vulnerability_trigger = "%s weicht zur\195\188ck, als die Haut schimmert.",
+	frenzy_trigger = "^Chromaggus ger\195\164t in t\195\182dliche Raserei!",
+	vulnerability_trigger = "^Chromaggus weicht zur\195\188ck, als die Haut schimmert.",
 
 	hit = "trifft",
 	crit = "kritisch",
@@ -116,8 +116,8 @@ L:RegisterTranslations("frFR", function() return {
 	breath_trigger = "^Chromaggus commence \195\160 lancer (.+)%.",
 	vulnerability_test = "^.+ lance .+ sur Chromaggus et lui (.+) ([%d]+) points de dégâts .+ (.+)%.";
 
-	frenzy_trigger = "Chromaggus entre dans une frénésie sanglante !",
-	vulnerability_trigger = "grimace lorsque sa peau se met à briller.",
+	frenzy_trigger = "^Chromaggus entre dans une frénésie sanglante !",
+	vulnerability_trigger = "^Chromaggus grimace lorsque sa peau se met à briller.",
 
 	hit = "inflige",
 	crit = "critique",
@@ -213,7 +213,7 @@ function BigWigsChromaggus:CHAT_MSG_MONSTER_EMOTE(msg)
 	elseif string.find(msg, L["vulnerability_trigger"]) then
 		if self.db.profile.vulnerability then
 			self:TriggerEvent("BigWigs_Message", L["vulnerability_warning"], "Positive")
-			self:TriggerEvent("BigWigs_StartBar", self, "Nouvelle vulnérabilité", 45, "Interface\\Icons\\inv_misc_monsterscales_17")
+			self:TriggerEvent("BigWigs_StartBar", self, "New vulnerability", 45, "Interface\\Icons\\inv_misc_monsterscales_17")
 		end
 		self:ScheduleEvent(function() BigWigsChromaggus.vulnerability = nil end, 2.5)
 	end
