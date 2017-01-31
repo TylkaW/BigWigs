@@ -14,7 +14,7 @@ local started
 L:RegisterTranslations("enUS", function() return {
 	trigger1 = "casts Gate of Shazzrah",
 	trigger2 = "Shazzrah gains Deaden Magic",
-	trigger3 = "Shazzrah lance Malédiction de Shazzrah.",
+	trigger3 = "Shazzrah casts Shazzrah's Curse",
 
 	warn1 = "Blink - ~45 seconds until next!",
 	warn2 = "~5 seconds to Blink!",
