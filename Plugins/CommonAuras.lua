@@ -40,7 +40,11 @@ L:RegisterTranslations("enUS", function() return {
 
 	cr_cast = "%s used challenging roar!",
 	cr_bar = "%s: Challenging Roar",
-
+    
+    nf_cast = "%s has spell vulnerability",
+    nf_bar = "%s: Spell Vulnerability",
+    
+    nightfall_trig = "(.+) is afflicted by Spell Vulnerability",
 	portal_cast = "%s opened a portal to %s!",
 	-- portal_bar is the spellname
 
@@ -54,6 +58,8 @@ L:RegisterTranslations("enUS", function() return {
 	["Toggle Challenging Roar display."] = true,
 	["Portal"] = true,
 	["Toggle Portal reporting."] = true,
+    ["Nightfall"] = true,
+    ["Toggle Nightfall Proc display."] = true,
 	["broadcast"] = true,
 	["Broadcast"] = true,
 	["Toggle broadcasting the messages to raid."] = true,
@@ -123,8 +129,35 @@ BigWigsCommonAuras.defaultDB = {
 	challengingshout = true,
 	challengingroar = true,
 	portal = true,
+    nightfall = false,
 	broadcast = false,
 }
+
+local function CheckNightfall()
+    local _,_,ic2=strfind(GetInventoryItemLink('player', 16),'(%d+):');
+    local aw = false
+    if ic2 == '19169' then 
+        aw = true
+    else
+        for i=4,0,-1 do
+            local bs = GetContainerNumSlots(i);
+            if bs>0 then 
+                for j=1,bs do 
+                    local _,icnt=GetContainerItemInfo(i,j); 
+                    if (icnt) then
+                        local il = GetContainerItemLink(i,j);
+                        local _, _, ic = strfind(il, '(%d+):');
+                        if ic == '19169' then
+                            aw = true;
+                            break;
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return aw;
+end
 
 BigWigsCommonAuras.consoleCmd = "commonauras"
 BigWigsCommonAuras.consoleOptions = {
@@ -167,6 +200,13 @@ BigWigsCommonAuras.consoleOptions = {
 			get = function() return BigWigsCommonAuras.db.profile.portal end,
 			set = function(v) BigWigsCommonAuras.db.profile.portal = v end,
 		},
+		["nightfall"] = {
+			type = "toggle",
+			name = L["Nightfall"],
+			desc = L["Toggle Nightfall Proc display."],
+			get = function() return BigWigsCommonAuras.db.profile.nightfall end,
+			set = function(v) BigWigsCommonAuras.db.profile.nightfall = v; if v then if CheckNightfall() then self:RegisterEvent("CHAT_MSG_SPELL_PERIODIC_CREATURE_DAMAGE") end end end,
+		},
 		["broadcast"] = {
 			type = "toggle",
 			name = L["Broadcast"],
@@ -185,7 +225,7 @@ BigWigsCommonAuras.revision = tonumber(string.sub("$Revision: 11670 $", 12, -3))
 function BigWigsCommonAuras:OnEnable()
 	local _, class = UnitClass("player")
 	local _, race = UnitRace("player")
-
+    --self:RegisterEvent("CHAT_MSG_SPELL_PERIODIC_CREATURE_DAMAGE")
 	if class == "WARRIOR" or class == "DRUID" then
 		self:RegisterEvent("SpellStatus_SpellCastInstant")
 		if class == "WARRIOR" then
@@ -212,7 +252,10 @@ function BigWigsCommonAuras:OnEnable()
 		self:RegisterEvent("SpellStatus_SpellCastCastingFinish")
 		self:RegisterEvent("SpellStatus_SpellCastFailure")
 	end
-
+    
+    if self.db.profile.nightfall then
+        if CheckNightfall() then self:RegisterEvent("CHAT_MSG_SPELL_PERIODIC_CREATURE_DAMAGE"); end
+    end
 	portalIcons["Ironforge"] = "Spell_Arcane_PortalIronForge"
 	portalIcons["Stormwind"] = "Spell_Arcane_PortalStormWind"
 	portalIcons["Darnassus"] = "Spell_Arcane_PortalDarnassus"
@@ -226,6 +269,7 @@ function BigWigsCommonAuras:OnEnable()
 	self:TriggerEvent("BigWigs_ThrottleSync", "BWCACS", 0) -- Challenging Shout
 	self:TriggerEvent("BigWigs_ThrottleSync", "BWCACR", 0) -- Challenging Roar
 	self:TriggerEvent("BigWigs_ThrottleSync", "BWCAP", 0.1) -- Portal
+    self:TriggerEvent("BigWigs_ThrottleSync", "BWNF", 0) -- NightFall
 end
 
 ------------------------------
@@ -254,6 +298,9 @@ function BigWigsCommonAuras:BigWigs_RecvSync( sync, rest, nick )
 		local _, _, zone = string.find(rest, ".*: (.*)")
 		self:TriggerEvent("BigWigs_Message", string.format(L["portal_cast"], nick, zone), "Blue", not self.db.profile.broadcast, false)
 		self:TriggerEvent("BigWigs_StartBar", self, rest, 60, "Interface\\Icons\\"..portalIcons[zone], "Blue")
+    elseif self.db.profile.nightfall and sync == "BWNF" and rest then
+		self:TriggerEvent("BigWigs_Message", string.format(L["nf_cast"], rest), "Orange", not self.db.profile.nightfall, false)
+		self:TriggerEvent("BigWigs_StartBar", self, string.format(L["nf_bar"], rest), 5, "Interface\\Icons\\INV_Axe_12", "Orange")
 	end
 end
 
@@ -296,6 +343,12 @@ function BigWigsCommonAuras:SpellCast(sName)
 	self:TriggerEvent("BigWigs_SendSync", "BWCAP "..sName)
 end
 
+function BigWigsCommonAuras:CHAT_MSG_SPELL_PERIODIC_CREATURE_DAMAGE(msg)
+    local _,_,name = string.find(msg, L["nightfall_trig"]) 
+    if name then
+		self:TriggerEvent("BigWigs_SendSync", "BWNF "..name)
+	end
+end
 ------------------------------
 --      Macro               --
 ------------------------------
