@@ -30,10 +30,10 @@ L:RegisterTranslations("enUS", function() return {
 	vulnerability_name = "Vulnerability Alerts",
 	vulnerability_desc = "Warn for Vulnerability changes",
 
-	breath_trigger = "^Chromaggus begins to cast ([%w ]+)\.",
+	breath_trigger = "begins to cast ([%w ]+)\.",
 	vulnerability_test = "^[%w']+ [%w' ]+ ([%w]+) Chromaggus for ([%d]+) ([%w ]+) damage%..*",
-	frenzy_trigger = "^Chromaggus goes into a killing frenzy!",
-	vulnerability_trigger = "^Chromaggus flinches as its skin shimmers.",
+	frenzy_trigger = "goes into a killing frenzy!",
+	vulnerability_trigger = "flinches as its skin shimmers.",
 	--vulnerability_trigger = "flinches",
 	
 	hit = "hits",
@@ -181,8 +181,10 @@ function BigWigsChromaggus:UNIT_HEALTH( msg )
 end
 
 function BigWigsChromaggus:CHAT_MSG_SPELL_CREATURE_VS_CREATURE_DAMAGE( msg )
+    --DEFAULT_CHAT_FRAME:AddMessage(msg)
 	local _,_, spellName = string.find(msg, L["breath_trigger"])
 	if spellName then
+        --DEFAULT_CHAT_FRAME:AddMessage("souffle")
 		local breath = L:HasReverseTranslation(spellName) and L:GetReverseTranslation(spellName) or nil
 		if not breath then return end
 		breath = string.sub(breath, -1)
@@ -203,7 +205,9 @@ function BigWigsChromaggus:BigWigs_RecvSync(sync, spellId)
 end
 
 function BigWigsChromaggus:CHAT_MSG_MONSTER_EMOTE(msg)
+    --DEFAULT_CHAT_FRAME:AddMessage(msg)
 	if msg == L["frenzy_trigger"] and self.db.profile.frenzy then
+        --DEFAULT_CHAT_FRAME:AddMessage("frenzy")
 		if class == "HUNTER" then
 			self:TriggerEvent("BigWigs_Message", L["frenzy_message"], "Personal", true, "Long")
 		else
@@ -211,7 +215,8 @@ function BigWigsChromaggus:CHAT_MSG_MONSTER_EMOTE(msg)
 		end
 		self:TriggerEvent("BigWigs_StartBar", self, "Prochaine frénésie", 15, "Interface\\Icons\\ability_druid_challangingroar")
 	elseif string.find(msg, L["vulnerability_trigger"]) then
-		if self.db.profile.vulnerability then
+		--DEFAULT_CHAT_FRAME:AddMessage("vul")
+        if self.db.profile.vulnerability then
 			self:TriggerEvent("BigWigs_Message", L["vulnerability_warning"], "Positive")
 			self:TriggerEvent("BigWigs_StartBar", self, "New vulnerability", 45, "Interface\\Icons\\inv_misc_monsterscales_17")
 		end
@@ -233,6 +238,7 @@ if (GetLocale() == "koKR") then
 	end
 else
 	function BigWigsChromaggus:PlayerDamageEvents(msg)
+        --DEFAULT_CHAT_FRAME:AddMessage(msg)
 		if (not self.vulnerability) then
 			local _,_, type, dmg, school = string.find(msg, L["vulnerability_test"])
 			if not school then
