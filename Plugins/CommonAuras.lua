@@ -24,6 +24,10 @@ local spellCasting = nil
 
 local portalIcons = {}
 
+local CurrentTarget = {}
+local ScorchStack = {}
+local IgniteStack = {}
+local IgniteDmg = {}
 ------------------------------
 --      Localization        --
 ------------------------------
@@ -60,6 +64,8 @@ L:RegisterTranslations("enUS", function() return {
 	["Toggle Portal reporting."] = true,
     ["Nightfall"] = true,
     ["Toggle Nightfall Proc display."] = true,
+    ["FireMage"] = true,
+	["Toggle Scorch and Ignite display."] = true,
 	["broadcast"] = true,
 	["Broadcast"] = true,
 	["Toggle broadcasting the messages to raid."] = true,
@@ -101,6 +107,10 @@ L:RegisterTranslations("frFR", function() return {
 	["Toggle Challenging Roar display."] = "Active l'affichage du Rugissement provocateur.",
 	["Portal"] = "Portail",
 	["Toggle Portal reporting."] = "Diffuser l'ouverture de portails",
+    ["Nightfall"] = "Nightfall",
+    ["Toggle Nightfall Proc display."] = "Diffuser et afficher les proc Nightfall",
+    ["FireMage"] = "Mage feu",
+	["Toggle Scorch and Ignite display."] = "Diffuser et afficher les timer Enflammer et Brulure",
 	["broadcast"] = "diffusion",
 	["Broadcast"] = "Diffusion",
 	["Toggle broadcasting the messages to raid."] = "Diffuser les messages sur le canal raid.",
@@ -130,6 +140,7 @@ BigWigsCommonAuras.defaultDB = {
 	challengingroar = true,
 	portal = true,
     nightfall = false,
+    fireMage = false,
 	broadcast = false,
 }
 
@@ -159,6 +170,13 @@ local function CheckNightfall()
     return aw;
 end
 
+local function CheckMageFire()
+    local _,_,_, _, currRank = GetTalentInfo(2,10);
+    if currRank and (currRank > 0) then
+        return true;
+    end
+    return false;
+end
 BigWigsCommonAuras.consoleCmd = "commonauras"
 BigWigsCommonAuras.consoleOptions = {
 	type = "group",
@@ -207,6 +225,13 @@ BigWigsCommonAuras.consoleOptions = {
 			get = function() return BigWigsCommonAuras.db.profile.nightfall end,
 			set = function(v) BigWigsCommonAuras.db.profile.nightfall = v; if v then if CheckNightfall() then self:RegisterEvent("CHAT_MSG_SPELL_PERIODIC_CREATURE_DAMAGE") end end end,
 		},
+		["fireMage"] = {
+			type = "toggle",
+			name = L["FireMage"],
+			desc = L["Toggle Scorch and Ignite display."],
+			get = function() return BigWigsCommonAuras.db.profile.firemage end,
+			set = function(v) BigWigsCommonAuras.db.profile.firemage = v; end,
+		},
 		["broadcast"] = {
 			type = "toggle",
 			name = L["Broadcast"],
@@ -248,6 +273,12 @@ function BigWigsCommonAuras:OnEnable()
 		self:Hook("UseAction")
 		self:HookScript(WorldFrame,"OnMouseDown","BigWigsCommonAurasOnMouseDown")]]
 	elseif class == "MAGE" then
+        if CheckMageFire() then
+            self:RegisterEvent("CHAT_MSG_SPELL_SELF_DAMAGE");
+            self:RegisterEvent("CHAT_MSG_SPELL_PERIODIC_CREATURE_DAMAGE");
+            self:RegisterEvent("PLAYER_TARGET_CHANGED");
+            self:RegisterEvent("CHAT_MSG_COMBAT_HOSTILE_DEATH");
+        end
 		if not spellStatus then spellStatus = AceLibrary("SpellStatus-1.0") end
 		self:RegisterEvent("SpellStatus_SpellCastCastingFinish")
 		self:RegisterEvent("SpellStatus_SpellCastFailure")
@@ -301,6 +332,22 @@ function BigWigsCommonAuras:BigWigs_RecvSync( sync, rest, nick )
     elseif self.db.profile.nightfall and sync == "BWNF" and rest then
 		self:TriggerEvent("BigWigs_Message", string.format(L["nf_cast"], rest), "Orange", not self.db.profile.nightfall, false)
 		self:TriggerEvent("BigWigs_StartBar", self, string.format(L["nf_bar"], rest), 5, "Interface\\Icons\\INV_Axe_12", "Orange")
+    elseif self.db.profile.firemage and sync == "BWSCS" and rest then
+        local _,_, mobName, stck = string.find(rest, "(.+) %((%d+)%)")
+        local stckminusone = "(" .. tostring(tonumber(stck) - 1) .. ")"
+        local restbis = string.gsub(rest, "%(%d%)", stckminusone )
+        self:TriggerEvent("BigWigs_StopBar", self, "Scorch " .. restbis, 30, "Interface\\Icons\\Spell_Fire_SoulBurn", "Red")
+		self:TriggerEvent("BigWigs_StartBar", self, "Scorch " .. rest, 30, "Interface\\Icons\\Spell_Fire_SoulBurn", "Red")
+    elseif self.db.profile.firemage and sync == "BWIGS" and rest then
+        local _,_, mobName, stck = string.find(rest, "(.+) %((%d+)%)")
+        local stckminusone = "(" .. tostring(tonumber(stck) - 1) .. ")"
+        local restbis = string.gsub(rest, "%(%d%)", stckminusone )
+        self:TriggerEvent("BigWigs_StopBar", self, "Ignite " .. restbis, 4, "Interface\\Icons\\Spell_Fire_Incinerate", "Red")
+		self:TriggerEvent("BigWigs_StartBar", self, "Ignite " .. rest, 4, "Interface\\Icons\\Spell_Fire_Incinerate", "Red")
+    elseif self.db.profile.firemage and sync == "BWIGD" and rest then
+        local _,_,mobName,dmg = string.find(rest, "(.+) %-(%d+)%-")
+        IgniteDmg = tonumber(dmg)
+		self:TriggerEvent("BigWigs_Message", "Ignite : " .. rest .. " (" .. IgniteStack[mobName] .. ")", "Red", not self.db.profile.fireMage, false)
 	end
 end
 
@@ -344,10 +391,73 @@ function BigWigsCommonAuras:SpellCast(sName)
 end
 
 function BigWigsCommonAuras:CHAT_MSG_SPELL_PERIODIC_CREATURE_DAMAGE(msg)
-    local _,_,name = string.find(msg, L["nightfall_trig"]) 
-    if name then
-		self:TriggerEvent("BigWigs_SendSync", "BWNF "..name)
-	end
+    local _, class = UnitClass("player")
+    if class == "MAGE" then
+        --DEFAULT_CHAT_FRAME:AddMessage("!!"..msg)
+        if string.find(msg, CurrentTarget .. " is afflicted by Fire Vulnerability") then
+            local _,_, stack = string.find(msg, CurrentTarget .. " is afflicted by Fire Vulnerability %((%d)%)")
+            if stack == nil then
+                stack = 1;
+            end
+            if not ScorchStack[CurrentTarget] then ScorchStack[CurrentTarget] = 0; end
+            if ScorchStack[CurrentTarget] == 5 then self:TriggerEvent("BigWigs_StopBar", self, "Scorch " .. CurrentTarget .. " (5)") end
+            ScorchStack[CurrentTarget]= tonumber(stack)
+            self:TriggerEvent("BigWigs_SendSync", "BWSCS "..CurrentTarget .. " (" .. tostring(stack)..")")
+        elseif string.find(msg, CurrentTarget .. " is afflicted by Ignite") then
+            local _,_, stack = string.find(msg, CurrentTarget .. " is afflicted by Ignite %((%d)%)")
+            if stack == nil then
+                stack = 1
+            end
+            if not IgniteStack[CurrentTarget] then IgniteStack[CurrentTarget] = 0; end
+            if IgniteStack[CurrentTarget] == 5 then self:TriggerEvent("BigWigs_StopBar", self, "Ignite " .. CurrentTarget .. " (5)") end
+            IgniteStack[CurrentTarget]= tonumber(stack)
+            self:TriggerEvent("BigWigs_SendSync", "BWIGS "..CurrentTarget .. " (" .. tostring(stack)..")")
+        elseif string.find(msg, CurrentTarget .. " suffers %d+ Fire damage .+ Ignite") then
+            local _,_, dmg, mage = string.find(msg, CurrentTarget .. " suffers (%d+) Fire damage from (.+) Ignite")
+            if mage == "your" then mage = UnitName('player'); end
+            self:TriggerEvent("BigWigs_SendSync", "BWIGD "..CurrentTarget .. " -" .. tostring(dmg) .. "- : " .. mage)
+        end
+    else
+        local _,_,name = string.find(msg, L["nightfall_trig"]) 
+        if name then
+            self:TriggerEvent("BigWigs_SendSync", "BWNF "..name)
+        end
+    end
+end
+
+function BigWigsCommonAuras:CHAT_MSG_SPELL_SELF_DAMAGE(msg)
+    local _,_, firstPart, dmg, school = string.find(msg, "(.+) " .. CurrentTarget .. " for (%d+) (.+) damage")
+    if firstPart then
+        if string.find(firstPart, "crits") then
+            if school == "Fire" then
+                if IgniteStack[CurrentTarget] == 5 then
+                    self:TriggerEvent("BigWigs_SendSync", "BWIGS "..CurrentTarget .. " (5)")
+                end
+            end
+        end
+        if string.find(firstPart, "Scorch") then
+            if ScorchStack[CurrentTarget] == 5 then
+                self:TriggerEvent("BigWigs_SendSync", "BWSCS "..CurrentTarget .. " (5)")
+            end
+        end
+    end
+    --DEFAULT_CHAT_FRAME:AddMessage(CurrentTarget .. " ||| " .. dmg .. " ||| " .. school)
+end
+
+function BigWigsCommonAuras:PLAYER_TARGET_CHANGED()
+    if (UnitName("target") ~= nil) then
+        CurrentTarget = UnitName("target");
+    end
+end
+function BigWigsCommonAuras:CHAT_MSG_COMBAT_HOSTILE_DEATH(arg1)
+    local _,_, mobName = string.find(arg1, "(.*) dies.")
+    if mobName == nil then return end
+    ScorchStack[mobName] = nil
+    IgniteStack[mobName] = nil
+    for i=1,5 do
+        self:TriggerEvent("BigWigs_StopBar", self, "Scorch " .. mobName .. " ("..tostring(i)..")")
+        self:TriggerEvent("BigWigs_StopBar", self, "Ignite " .. mobName .. " ("..tostring(i)..")")
+    end
 end
 ------------------------------
 --      Macro               --
